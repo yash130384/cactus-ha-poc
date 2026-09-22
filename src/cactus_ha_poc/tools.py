@@ -25,7 +25,7 @@ def get_weather(
     location: str = "Norderstedt",
     query_type: Literal["all", "temperature", "rain", "wind"] = "all",
 ) -> str:
-    """Retrieves current weather conditions or forecasts from Home Assistant.
+    """Get current weather or forecast for a location (or home location). Call this for weather questions, rain, umbrella, temperature, wind, or outdoor conditions. Hol Wetter, Regen, Regenschirm, Temperatur oder Winddaten ab.
 
     Args:
         location: City or location name. Defaults to 'Norderstedt'.

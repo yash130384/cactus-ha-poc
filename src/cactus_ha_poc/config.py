@@ -14,7 +14,7 @@ class Config:
     hass_token: Optional[str] = None
     mock_mode: bool = True
     needle_telemetry: str = "0"
-    confidence_threshold: float = 0.40
+    confidence_threshold: float = 0.35
 
     def __post_init__(self) -> None:
         # Enforce telemetry setting in the environment immediately
@@ -46,9 +46,9 @@ def load_config(env_path: Optional[str | Path] = None) -> Config:
     needle_telemetry = os.getenv("NEEDLE_TELEMETRY", "0").strip()
 
     try:
-        confidence_threshold = float(os.getenv("CONFIDENCE_THRESHOLD", "0.40"))
+        confidence_threshold = float(os.getenv("CONFIDENCE_THRESHOLD", "0.35"))
     except ValueError:
-        confidence_threshold = 0.40
+        confidence_threshold = 0.35
 
     cfg = Config(
         hass_url=hass_url,
