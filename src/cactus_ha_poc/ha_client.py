@@ -20,7 +20,13 @@ class BaseHomeAssistantClient(ABC):
         pass
 
     @abstractmethod
-    def call_service(self, domain: str, service: str, service_data: dict[str, Any]) -> dict[str, Any]:
+    def call_service(
+        self,
+        domain: str,
+        service: str,
+        service_data: dict[str, Any],
+        return_response: bool = False,
+    ) -> dict[str, Any]:
         """Execute a service call in Home Assistant."""
         pass
 
@@ -89,9 +95,16 @@ class BaseHomeAssistantClient(ABC):
         # In modern HA, forecasts might be retrieved via weather.get_forecasts service
         if not forecast:
             try:
-                forecast_res = self.call_service("weather", "get_forecasts", {"entity_id": entity_id, "type": "daily"})
-                if isinstance(forecast_res, dict) and entity_id in forecast_res:
-                    forecast = forecast_res[entity_id].get("forecast", [])
+                forecast_res = self.call_service(
+                    "weather",
+                    "get_forecasts",
+                    {"entity_id": entity_id, "type": "daily"},
+                    return_response=True,
+                )
+                if isinstance(forecast_res, dict):
+                    service_resp = forecast_res.get("service_response", forecast_res)
+                    if isinstance(service_resp, dict) and entity_id in service_resp:
+                        forecast = service_resp[entity_id].get("forecast", [])
             except Exception as e:
                 logger.debug(f"Could not fetch weather forecast service for {entity_id}: {e}")
 
@@ -190,7 +203,13 @@ class MockHomeAssistantClient(BaseHomeAssistantClient):
             return self.entities[entity_id]
         raise ValueError(f"Entity '{entity_id}' not found in mock registry.")
 
-    def call_service(self, domain: str, service: str, service_data: dict[str, Any]) -> dict[str, Any]:
+    def call_service(
+        self,
+        domain: str,
+        service: str,
+        service_data: dict[str, Any],
+        return_response: bool = False,
+    ) -> dict[str, Any]:
         entity_id = service_data.get("entity_id")
         now_iso = datetime.now(timezone.utc).isoformat()
 
@@ -233,6 +252,8 @@ class MockHomeAssistantClient(BaseHomeAssistantClient):
         elif domain == "weather" and service == "get_forecasts":
             target = entity_id or "weather.forecast_home"
             forecast = self.entities.get(target, {}).get("attributes", {}).get("forecast", [])
+            if return_response:
+                return {"changed_states": [], "service_response": {target: {"forecast": forecast}}}
             return {target: {"forecast": forecast}}
 
         return {"success": True, "domain": domain, "service": service, "data": service_data}
@@ -267,9 +288,16 @@ class LiveHomeAssistantClient(BaseHomeAssistantClient):
         resp.raise_for_status()
         return resp.json()
 
-    def call_service(self, domain: str, service: str, service_data: dict[str, Any]) -> dict[str, Any]:
+    def call_service(
+        self,
+        domain: str,
+        service: str,
+        service_data: dict[str, Any],
+        return_response: bool = False,
+    ) -> dict[str, Any]:
         url = f"{self.base_url}/api/services/{domain}/{service}"
-        resp = self.session.post(url, json=service_data, timeout=self.timeout)
+        request_options = {"params": {"return_response": "true"}} if return_response else {}
+        resp = self.session.post(url, json=service_data, timeout=self.timeout, **request_options)
         resp.raise_for_status()
         try:
             return resp.json()

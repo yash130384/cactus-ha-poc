@@ -132,3 +132,12 @@ def test_live_client_calls():
             timeout=5.0,
         )
         assert res["entity_id"] == "light.esstisch"
+
+    with patch.object(client.session, "post", return_value=mock_resp) as mock_post:
+        client.call_service("weather", "get_forecasts", {"entity_id": "weather.forecast_home", "type": "daily"}, return_response=True)
+        mock_post.assert_called_once_with(
+            "http://127.0.0.1:8123/api/services/weather/get_forecasts",
+            json={"entity_id": "weather.forecast_home", "type": "daily"},
+            params={"return_response": "true"},
+            timeout=5.0,
+        )
