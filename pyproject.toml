@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "cactus-ha-poc"
+version = "0.1.0"
+description = "Lokaler Proof of Concept: Home Assistant Sprachsteuerung mit Cactus Needle 3"
+readme = "README.md"
+requires-python = ">=3.11"
+authors = [
+    { name = "Lead Developer", email = "dev@example.local" }
+]
+dependencies = [
+    "cactus-needle>=3.0.4",
+    "requests>=2.31.0",
+    "python-dotenv>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[project.scripts]
+cactus-ha-poc = "cactus_ha_poc.cli:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/cactus_ha_poc"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
