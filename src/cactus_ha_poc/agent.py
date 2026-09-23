@@ -158,7 +158,7 @@ class NeedleAgent:
             brightness = int(m.group(1)) if m else 100
 
         # Resolve colloquial name to technical Home Assistant entity_id
-        entity_id = self.resolver.resolve_light(name)
+        entity_id = self.resolver.resolve_light(prompt) or self.resolver.resolve_light(name)
         if not entity_id:
             latency_ms = (time.perf_counter() - start_time) * 1000.0
             return ExecutionResult(
