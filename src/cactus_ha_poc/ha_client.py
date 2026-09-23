@@ -133,74 +133,76 @@ class MockHomeAssistantClient(BaseHomeAssistantClient):
     def reset_defaults(self) -> None:
         """Reset mock entities to initial state."""
         now_iso = datetime.now(timezone.utc).isoformat()
-        self.entities = {
-            "light.esstisch": {
-                "entity_id": "light.esstisch",
+        all_lights = {
+            "light.decke1": "Decke 1",
+            "light.decke2": "Decke 2",
+            "light.decke3": "Decke 3",
+            "light.bodenlampe": "Bodenlampe",
+            "light.schlafzimmer": "Schlafzimmer",
+            "light.schlafzimmer_decke": "Schlafzimmer Decke",
+            "light.kuche": "Küche",
+            "light.flur_oben": "Flur oben",
+            "light.schranklampe": "Schranklampe",
+            "light.esstisch": "Esstisch",
+            "light.leto_bett": "Leto Bett",
+            "light.letos_led_leiste": "Letos LED Leiste",
+            "light.licht_1": "Licht 1",
+            "light.licht_10": "Licht 10",
+            "light.licht_11": "Licht 11",
+        }
+        self.entities = {}
+        for entity_id, friendly_name in all_lights.items():
+            self.entities[entity_id] = {
+                "entity_id": entity_id,
                 "state": "off",
                 "attributes": {
-                    "friendly_name": "Esstisch",
+                    "friendly_name": friendly_name,
                     "brightness": 0,
                     "brightness_pct": 0,
-                    "supported_color_modes": ["brightness", "color_temp"],
+                    "supported_color_modes": ["brightness"],
                 },
                 "last_changed": now_iso,
                 "last_updated": now_iso,
+            }
+
+        # Weather entity
+        self.entities["weather.forecast_home"] = {
+            "entity_id": "weather.forecast_home",
+            "state": "partlycloudy",
+            "attributes": {
+                "friendly_name": "Home",
+                "temperature": 17.0,
+                "temperature_unit": "°C",
+                "condition": "partlycloudy",
+                "wind_speed": 14.0,
+                "wind_speed_unit": "km/h",
+                "precipitation": 0.0,
+                "precipitation_unit": "mm",
+                "humidity": 65,
+                "forecast": [
+                    {
+                        "datetime": "2026-09-23T12:00:00+00:00",
+                        "condition": "partlycloudy",
+                        "temperature": 19.0,
+                        "templow": 11.0,
+                        "precipitation": 0.0,
+                        "wind_speed": 15.0,
+                    }
+                ],
             },
-            "light.kuche": {
-                "entity_id": "light.kuche",
-                "state": "off",
-                "attributes": {
-                    "friendly_name": "Küche",
-                    "brightness": 0,
-                    "brightness_pct": 0,
-                    "supported_color_modes": ["onoff"],
-                },
-                "last_changed": now_iso,
-                "last_updated": now_iso,
-            },
-            "light.flur_oben": {
-                "entity_id": "light.flur_oben",
-                "state": "off",
-                "attributes": {
-                    "friendly_name": "Flur oben",
-                    "brightness": 0,
-                    "brightness_pct": 0,
-                },
-                "last_changed": now_iso,
-                "last_updated": now_iso,
-            },
-            "weather.forecast_home": {
-                "entity_id": "weather.forecast_home",
-                "state": "partlycloudy",
-                "attributes": {
-                    "friendly_name": "Home",
-                    "temperature": 17.0,
-                    "temperature_unit": "°C",
-                    "condition": "partlycloudy",
-                    "wind_speed": 14.0,
-                    "wind_speed_unit": "km/h",
-                    "precipitation": 0.0,
-                    "precipitation_unit": "mm",
-                    "humidity": 65,
-                    "forecast": [
-                        {
-                            "datetime": "2026-09-23T12:00:00+00:00",
-                            "condition": "partlycloudy",
-                            "temperature": 19.0,
-                            "templow": 11.0,
-                            "precipitation": 0.0,
-                            "wind_speed": 15.0,
-                        }
-                    ],
-                },
-                "last_changed": now_iso,
-                "last_updated": now_iso,
-            },
+            "last_changed": now_iso,
+            "last_updated": now_iso,
         }
 
     def get_state(self, entity_id: str) -> dict[str, Any]:
         if entity_id in self.entities:
             return self.entities[entity_id]
+        if entity_id in ("light.all", "all"):
+            return {
+                "entity_id": "light.all",
+                "state": "off",
+                "attributes": {"friendly_name": "Alle Lichter", "brightness": 0, "brightness_pct": 0},
+            }
         raise ValueError(f"Entity '{entity_id}' not found in mock registry.")
 
     def call_service(
@@ -214,6 +216,28 @@ class MockHomeAssistantClient(BaseHomeAssistantClient):
         now_iso = datetime.now(timezone.utc).isoformat()
 
         if domain == "light":
+            if entity_id in ("light.all", "all"):
+                pct = service_data.get("brightness_pct")
+                if pct is None and service_data.get("brightness"):
+                    pct = int(round(service_data["brightness"] / 255.0 * 100))
+                if pct is None and service == "turn_on":
+                    pct = 100
+
+                for eid, ent in self.entities.items():
+                    if eid.startswith("light.") and eid not in ("light.all", "all"):
+                        if service == "turn_on":
+                            ent["state"] = "on"
+                            ent["attributes"]["brightness_pct"] = pct
+                            ent["attributes"]["brightness"] = int(round((pct or 100) / 100.0 * 255))
+                        elif service == "turn_off":
+                            ent["state"] = "off"
+                            ent["attributes"]["brightness_pct"] = 0
+                            ent["attributes"]["brightness"] = 0
+                        ent["last_changed"] = now_iso
+                        ent["last_updated"] = now_iso
+
+                return {"success": True, "action": service, "target": "all"}
+
             if entity_id not in self.entities:
                 # Dynamically register if missing
                 self.entities[entity_id] = {

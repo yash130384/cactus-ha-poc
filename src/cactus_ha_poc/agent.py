@@ -68,7 +68,12 @@ class NeedleAgent:
             system=self.SYSTEM_PROMPT,
         )
 
-    def process_prompt(self, prompt: str, max_new_tokens: int = 64) -> ExecutionResult:
+    def process_prompt(
+        self,
+        prompt: str,
+        max_new_tokens: int = 64,
+        dry_run: bool = False,
+    ) -> ExecutionResult:
         """Process a natural language user prompt through Needle 3 and execute resulting actions."""
         start_time = time.perf_counter()
 
@@ -109,9 +114,13 @@ class NeedleAgent:
                 error="low_confidence",
             )
 
+        effective_dry_run = dry_run or getattr(self.config, "dry_run", False)
+
         # Dispatch tool call
         if tool_name == "control_light":
-            return self._handle_control_light(prompt, tool_call, arguments, confidence, start_time)
+            return self._handle_control_light(
+                prompt, tool_call, arguments, confidence, start_time, dry_run=effective_dry_run
+            )
         elif tool_name == "get_weather":
             return self._handle_get_weather(prompt, tool_call, arguments, confidence, start_time)
         else:
@@ -133,10 +142,20 @@ class NeedleAgent:
         arguments: dict[str, Any],
         confidence: float,
         start_time: float,
+        dry_run: bool = False,
     ) -> ExecutionResult:
         name = arguments.get("name", "")
         action = arguments.get("action", "on")
-        brightness = arguments.get("brightness", 100)
+        brightness_arg = arguments.get("brightness")
+        if brightness_arg is not None:
+            try:
+                brightness = int(brightness_arg)
+            except (ValueError, TypeError):
+                brightness = 100
+        else:
+            import re
+            m = re.search(r"(\d+)\s*(?:%|prozent)", prompt, re.IGNORECASE)
+            brightness = int(m.group(1)) if m else 100
 
         # Resolve colloquial name to technical Home Assistant entity_id
         entity_id = self.resolver.resolve_light(name)
@@ -152,21 +171,72 @@ class NeedleAgent:
                 error="entity_not_found",
             )
 
-        # Execute light action via HA client
-        pct = brightness if (action == "dim" or (action == "on" and brightness != 100)) else None
-        ha_res = self.ha_client.set_light(entity_id=entity_id, action=action, brightness_pct=pct)
-
-        # Format user response
-        friendly = self.ha_client.get_state(entity_id).get("attributes", {}).get("friendly_name", name)
-        new_state = ha_res.get("state", action)
-        new_pct = ha_res.get("brightness_pct", brightness)
-
-        if action == "off":
-            message = f"Licht '{friendly}' ausgeschaltet (Status: {new_state})."
-        elif action == "dim":
-            message = f"Licht '{friendly}' auf {new_pct}% gedimmt (Status: {new_state})."
+        # Determine resolved friendly name
+        resolved_name = name
+        if entity_id == "light.all":
+            resolved_name = "Alle Lichter"
         else:
-            message = f"Licht '{friendly}' eingeschaltet (Status: {new_state}, Helligkeit: {new_pct}%)."
+            try:
+                state = self.ha_client.get_state(entity_id)
+                resolved_name = state.get("attributes", {}).get("friendly_name") or name
+            except Exception:
+                resolved_name = name
+
+        # Format action description for user messages
+        if action == "off":
+            action_desc = "ausgeschaltet"
+        elif action == "dim":
+            action_desc = f"auf {brightness}% gedimmt" if brightness is not None else "gedimmt"
+        else:
+            action_desc = "eingeschaltet"
+
+        # TEST-MODUS (dry_run=True): Kein Aufruf von self.ha_client.set_light(...) oder Service!
+        if dry_run:
+            latency_ms = (time.perf_counter() - start_time) * 1000.0
+            message = (
+                f"[TEST-MODUS] Befehl erkannt: Licht '{resolved_name}' wuerde {action_desc} werden "
+                f"(Entity: {entity_id}). Kein physischer Schaltbefehl gesendet."
+            )
+            return ExecutionResult(
+                success=True,
+                prompt=prompt,
+                message=message,
+                tool_call=tool_call,
+                entity_id=entity_id,
+                action=action,
+                confidence=confidence,
+                latency_ms=latency_ms,
+                ha_result={"simulated": True, "dry_run": True},
+            )
+
+        # LIVE-MODUS (dry_run=False): Echter Aufruf über self.ha_client.set_light(...)
+        pct = brightness if (action == "dim" or (action == "on" and brightness != 100)) else None
+
+        if entity_id == "light.all":
+            all_lights = [eid for eid in self.resolver.LIGHT_REGISTRY.keys() if eid != "light.all"]
+            results = {}
+            for eid in all_lights:
+                results[eid] = self.ha_client.set_light(entity_id=eid, action=action, brightness_pct=pct)
+
+            if action == "off":
+                message = f"Alle {len(all_lights)} Lichter ausgeschaltet."
+            elif action == "dim":
+                message = f"Alle {len(all_lights)} Lichter auf {brightness}% gedimmt."
+            else:
+                message = f"Alle {len(all_lights)} Lichter eingeschaltet."
+
+            ha_res = {"success": True, "action": action, "entities": results}
+        else:
+            ha_res = self.ha_client.set_light(entity_id=entity_id, action=action, brightness_pct=pct)
+            new_state = ha_res.get("state", action)
+            new_pct = ha_res.get("brightness_pct", brightness)
+
+            if action == "off":
+                message = f"Licht '{resolved_name}' ausgeschaltet (Status: {new_state})."
+            elif action == "dim":
+                message = f"Licht '{resolved_name}' auf {new_pct}% gedimmt (Status: {new_state})."
+            else:
+                message = f"Licht '{resolved_name}' eingeschaltet (Status: {new_state}, Helligkeit: {new_pct}%)."
 
         latency_ms = (time.perf_counter() - start_time) * 1000.0
         return ExecutionResult(

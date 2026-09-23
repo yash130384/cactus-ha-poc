@@ -140,3 +140,86 @@ def test_confidence_threshold_gate(mock_client: MockHomeAssistantClient):
     res = strict_agent.process_prompt("Wie ist das Wetter in Norderstedt?")
     assert res.success is False
     assert res.error == "low_confidence"
+
+
+def test_dry_run_turn_on(agent: NeedleAgent, mock_client: MockHomeAssistantClient):
+    """Verify dry_run=True does not execute physical command for turn on."""
+    mock_client.set_light("light.esstisch", action="off")
+    assert mock_client.get_state("light.esstisch")["state"] == "off"
+
+    res = agent.process_prompt("Schalte das Licht am Esstisch an", dry_run=True)
+    assert res.success is True
+    assert res.entity_id == "light.esstisch"
+    assert res.ha_result == {"simulated": True, "dry_run": True}
+    assert res.message == (
+        "[TEST-MODUS] Befehl erkannt: Licht 'Esstisch' wuerde eingeschaltet werden "
+        "(Entity: light.esstisch). Kein physischer Schaltbefehl gesendet."
+    )
+    # State in mock client must remain unchanged (off)
+    assert mock_client.get_state("light.esstisch")["state"] == "off"
+
+
+def test_dry_run_turn_off(agent: NeedleAgent, mock_client: MockHomeAssistantClient):
+    """Verify dry_run=True does not execute physical command for turn off."""
+    mock_client.set_light("light.esstisch", action="on")
+    assert mock_client.get_state("light.esstisch")["state"] == "on"
+
+    res = agent.process_prompt("Esstischlicht ausschalten", dry_run=True)
+    assert res.success is True
+    assert res.entity_id == "light.esstisch"
+    assert res.ha_result == {"simulated": True, "dry_run": True}
+    assert res.message == (
+        "[TEST-MODUS] Befehl erkannt: Licht 'Esstisch' wuerde ausgeschaltet werden "
+        "(Entity: light.esstisch). Kein physischer Schaltbefehl gesendet."
+    )
+    # State in mock client must remain unchanged (on)
+    assert mock_client.get_state("light.esstisch")["state"] == "on"
+
+
+def test_dry_run_dim(agent: NeedleAgent, mock_client: MockHomeAssistantClient):
+    """Verify dry_run=True for dimming command."""
+    mock_client.set_light("light.esstisch", action="off")
+
+    res = agent.process_prompt("Dimme das Esstischlicht auf 40 Prozent", dry_run=True)
+    assert res.success is True
+    assert res.entity_id == "light.esstisch"
+    assert res.ha_result == {"simulated": True, "dry_run": True}
+    assert res.message == (
+        "[TEST-MODUS] Befehl erkannt: Licht 'Esstisch' wuerde auf 40% gedimmt werden "
+        "(Entity: light.esstisch). Kein physischer Schaltbefehl gesendet."
+    )
+    assert mock_client.get_state("light.esstisch")["state"] == "off"
+
+
+def test_dry_run_all_lights(agent: NeedleAgent, mock_client: MockHomeAssistantClient):
+    """Verify dry_run=True for light.all."""
+    res = agent.process_prompt("Alle Lichter ausschalten", dry_run=True)
+    assert res.success is True
+    assert res.entity_id == "light.all"
+    assert res.ha_result == {"simulated": True, "dry_run": True}
+    assert res.message == (
+        "[TEST-MODUS] Befehl erkannt: Licht 'Alle Lichter' wuerde ausgeschaltet werden "
+        "(Entity: light.all). Kein physischer Schaltbefehl gesendet."
+    )
+
+
+def test_live_all_lights_turn_off(agent: NeedleAgent, mock_client: MockHomeAssistantClient):
+    """Verify dry_run=False iterates and switches all lights."""
+    # Turn several lights on first
+    mock_client.set_light("light.esstisch", action="on")
+    mock_client.set_light("light.kuche", action="on")
+    mock_client.set_light("light.decke1", action="on")
+    assert mock_client.get_state("light.esstisch")["state"] == "on"
+    assert mock_client.get_state("light.kuche")["state"] == "on"
+    assert mock_client.get_state("light.decke1")["state"] == "on"
+
+    res = agent.process_prompt("Alle Lichter ausschalten", dry_run=False)
+    assert res.success is True
+    assert res.entity_id == "light.all"
+    assert "Alle" in res.message and "ausgeschaltet" in res.message
+
+    # Verify all entities are now turned off
+    assert mock_client.get_state("light.esstisch")["state"] == "off"
+    assert mock_client.get_state("light.kuche")["state"] == "off"
+    assert mock_client.get_state("light.decke1")["state"] == "off"
+    assert mock_client.get_state("light.bodenlampe")["state"] == "off"

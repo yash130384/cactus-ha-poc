@@ -15,6 +15,7 @@ class Config:
     mock_mode: bool = True
     needle_telemetry: str = "0"
     confidence_threshold: float = 0.35
+    dry_run: bool = False
 
     def __post_init__(self) -> None:
         # Enforce telemetry setting in the environment immediately
@@ -50,11 +51,15 @@ def load_config(env_path: Optional[str | Path] = None) -> Config:
     except ValueError:
         confidence_threshold = 0.35
 
+    dry_run_raw = os.getenv("DRY_RUN", "").lower().strip()
+    dry_run = dry_run_raw in ("true", "1", "yes", "on")
+
     cfg = Config(
         hass_url=hass_url,
         hass_token=hass_token,
         mock_mode=mock_mode,
         needle_telemetry=needle_telemetry,
         confidence_threshold=confidence_threshold,
+        dry_run=dry_run,
     )
     return cfg

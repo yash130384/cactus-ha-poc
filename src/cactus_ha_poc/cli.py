@@ -199,6 +199,11 @@ def main(argv: Optional[list[str]] = None) -> int:
         default=None,
         help="Schwellenwert für Mindest-Konfidenz (z.B. 0.40)",
     )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Führt Befehl im Test-Modus aus (kein physischer Schaltbefehl)",
+    )
 
     args = parser.parse_args(argv)
 
@@ -211,7 +216,12 @@ def main(argv: Optional[list[str]] = None) -> int:
     if args.threshold is not None:
         cfg.confidence_threshold = args.threshold
 
+    if args.dry_run:
+        cfg.dry_run = True
+
     mode_label = "MOCK (Simulator)" if cfg.mock_mode or not cfg.hass_token else f"LIVE ({cfg.hass_url})"
+    if cfg.dry_run:
+        mode_label += " [DRY-RUN / TEST-MODUS]"
     agent = NeedleAgent(config=cfg)
 
     # Mode 1: Benchmark Evaluation
@@ -220,7 +230,7 @@ def main(argv: Optional[list[str]] = None) -> int:
 
     # Mode 2: Single command execution
     if args.prompt:
-        res = agent.process_prompt(args.prompt)
+        res = agent.process_prompt(args.prompt, dry_run=args.dry_run)
         print_result(res)
         return 0 if res.success else 1
 
@@ -236,7 +246,7 @@ def main(argv: Optional[list[str]] = None) -> int:
                 print(f"{GRAY}Beende Cactus HA POC.{RESET}")
                 break
 
-            res = agent.process_prompt(user_input)
+            res = agent.process_prompt(user_input, dry_run=args.dry_run)
             print_result(res)
         except (KeyboardInterrupt, EOFError):
             print(f"\n{GRAY}Abgebrochen.{RESET}")

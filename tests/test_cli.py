@@ -50,3 +50,13 @@ def test_cli_interactive_quit(capsys):
         assert exit_code == 0
         assert "Cactus HA POC" in captured
         assert "Beende Cactus HA POC" in captured
+
+
+def test_cli_dry_run(capsys):
+    exit_code = main(["--mock", "--dry-run", "Schalte das Licht am Esstisch an"])
+    captured = capsys.readouterr().out
+    assert exit_code == 0
+    assert "ERFOLG" in captured
+    assert "[TEST-MODUS]" in captured
+    assert "Kein physischer Schaltbefehl gesendet" in captured
+

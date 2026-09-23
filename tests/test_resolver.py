@@ -59,6 +59,65 @@ def test_resolve_other_lights(resolver: EntityResolver):
     assert resolver.resolve_light("Licht 1") == "light.licht_1"
 
 
+def test_resolve_decke_variants(resolver: EntityResolver):
+    for alias in ["decke 1", "decke1", "erste deckenlampe", "decke eins"]:
+        assert resolver.resolve_light(alias) == "light.decke1"
+
+    for alias in ["decke 2", "decke2", "zweite deckenlampe", "decke zwei"]:
+        assert resolver.resolve_light(alias) == "light.decke2"
+
+    for alias in ["decke 3", "decke3", "dritte deckenlampe", "decke drei"]:
+        assert resolver.resolve_light(alias) == "light.decke3"
+
+
+def test_resolve_bodenlampe_variants(resolver: EntityResolver):
+    for alias in ["bodenlampe", "stehlampe", "bodenleuchte"]:
+        assert resolver.resolve_light(alias) == "light.bodenlampe"
+
+
+def test_resolve_schlafzimmer_variants(resolver: EntityResolver):
+    for alias in ["schlafzimmer", "schlafzimmerlicht", "lampe im schlafzimmer"]:
+        assert resolver.resolve_light(alias) == "light.schlafzimmer"
+
+    for alias in ["schlafzimmer decke", "schlafzimmerdecke"]:
+        assert resolver.resolve_light(alias) == "light.schlafzimmer_decke"
+
+
+def test_resolve_leto_and_led_variants(resolver: EntityResolver):
+    for alias in ["leto bett", "letobett", "bettlampe", "bett"]:
+        assert resolver.resolve_light(alias) == "light.leto_bett"
+
+    for alias in ["letos led leiste", "led leiste", "led streifen", "led"]:
+        assert resolver.resolve_light(alias) == "light.letos_led_leiste"
+
+
+def test_resolve_numbered_lights(resolver: EntityResolver):
+    for alias in ["licht 1", "licht1", "lampe 1"]:
+        assert resolver.resolve_light(alias) == "light.licht_1"
+
+    for alias in ["licht 10", "licht10", "lampe 10"]:
+        assert resolver.resolve_light(alias) == "light.licht_10"
+
+    for alias in ["licht 11", "licht11", "lampe 11"]:
+        assert resolver.resolve_light(alias) == "light.licht_11"
+
+
+def test_resolve_all_lights(resolver: EntityResolver):
+    for alias in ["alle lichter", "alle lampen", "alles", "lichter", "lampen"]:
+        assert resolver.resolve_light(alias) == "light.all"
+
+
+def test_normalize_umlauts(resolver: EntityResolver):
+    # ae -> e, oe -> o, ue -> u
+    assert resolver._normalize("Küche") == "kuche"
+    assert resolver._normalize("kueche") == "kuche"
+    assert resolver._normalize("kuche") == "kuche"
+    assert resolver._normalize("Möbel") == "mobel"
+    assert resolver._normalize("moebel") == "mobel"
+    assert resolver._normalize("Käse") == "kese"
+    assert resolver._normalize("kaese") == "kese"
+
+
 def test_resolve_weather_variants(resolver: EntityResolver):
     test_cases = [
         "Norderstedt",

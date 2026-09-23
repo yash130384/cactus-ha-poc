@@ -99,23 +99,29 @@ Das CLI-Tool `cactus-ha-poc` bietet drei Betriebsmodi:
 
 ### 1. Einmal-Befehl
 ```bash
-# Licht schalten
+# Licht schalten (Live oder Mock)
 cactus-ha-poc "Schalte das Licht am Esstisch an"
 
 # Dimmen
 cactus-ha-poc "Dimme das Esstischlicht auf 40 Prozent"
 
+# Alle Lichter schalten
+cactus-ha-poc "Alle Lichter ausschalten"
+
+# Test-Modus (Dry-Run): Prüft Erkennung ohne physische Schaltung
+cactus-ha-poc --dry-run "Schalte das Licht am Esstisch an"
+
 # Wetter abfragen
 cactus-ha-poc "Brauche ich heute einen Regenschirm draußen?"
 ```
 
-Beispielausgabe:
+Beispielausgabe im Test-Modus (`--dry-run`):
 ```text
-[ERFOLG] Licht 'Esstisch' auf 40% gedimmt (Status: on).
-  Tool-Call:   control_light(name='Esstischlicht', action='dim', brightness=40)
+[ERFOLG] [TEST-MODUS] Befehl erkannt: Licht 'Esstisch' wuerde eingeschaltet werden (Entity: light.esstisch). Kein physischer Schaltbefehl gesendet.
+  Tool-Call:   control_light(name='Esstisch', action='on')
   Ziel-Entity: light.esstisch
-  Konfidenz:   99.8%
-  Latenz:      278.4 ms
+  Konfidenz:   96.5%
+  Latenz:      417.3 ms
 ```
 
 ### 2. Interaktiver Dialog-Modus (REPL)
@@ -176,12 +182,12 @@ pytest -v
 
 Ausgabe:
 ```text
-tests/test_agent_e2e.py .................... [ 29%]
-tests/test_cli.py .....                      [ 44%]
-tests/test_ha_client.py ..........           [ 73%]
-tests/test_resolver.py .........             [100%]
+tests/test_agent_e2e.py ...............      [ 31%]
+tests/test_cli.py ......                     [ 44%]
+tests/test_ha_client.py ..........           [ 65%]
+tests/test_resolver.py ................      [100%]
 
-============================== 34 passed in 9.23s ==============================
+============================== 47 passed in 12.21s ==============================
 ```
 
 ---
